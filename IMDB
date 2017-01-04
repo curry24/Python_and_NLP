@@ -1,0 +1,50 @@
+# -*- coding:utf-8 -*-
+import pandas as pd
+from bs4 import BeautifulSoup
+import re
+from nltk.corpus import stopwords
+import nltk
+from sklearn.feature_extraction.text import CountVectorizer,TfidfVectorizer
+from sklearn.naive_bayes import MultinomialNB
+from sklearn.pipeline import Pipeline
+from sklearn.grid_search import GridSearchCV
+
+def review_to_text(review,remove_stopwords):
+    raw_text = BeautifulSoup(review, "html.parser").get_text()
+    letters = re.sub('[^a-zA-Z]',' ',raw_text)
+    words = letters.lower().split()
+    if remove_stopwords:
+        stop_words = set(stopwords.words('english'))
+        words = [w for w in words if w not in stop_words]
+    return words
+
+# f=open('C:\Users\Administrator\Desktop\IMDB\demo.txt','w')
+# for i in range(0,len(X_train[0])):
+#     f.write(X_train[0][i])
+# f.close()
+if __name__ == '__main__':
+    train = pd.read_csv('C:\Users\Administrator\Desktop\IMDB\labeledTrainData.tsv', delimiter='\t')
+    # test = pd.read_csv('C:\Users\Adminisrattor\Desktop\IMDB\testData.tsv',delimiter='\t')
+
+    X_train = []
+    for review in train['review']:
+        X_train.append(' '.join(review_to_text(review, True)))
+
+    y_train = train['sentiment']
+
+    pip_count = Pipeline([('count_vec',CountVectorizer(analyzer='word')),('mnb',MultinomialNB())]) # 采用NB的多项式模型
+    pip_tfidf = Pipeline([('tfidf_vec',TfidfVectorizer(analyzer='word')),('mnb',MultinomialNB())])
+
+    # 以下超参数的意义：
+    # binary：If True, all non zero counts are set to 1.
+    #         This is useful for discrete probabilistic models that model binary events rather than integer counts.
+    # ngram_range: The lower and upper boundary of the range of n-values for different n-grams to be extracted.
+    #              All values of n such that min_n <= n <= max_n will be used.
+    # alpha: NB里面的平滑值，为1时就是Laplace平滑
+    params_count = {'count_vec__binary':[True,False],'count_vec__ngram_range':[(1,1),(1,2)],'mnb__alpha':[0.1,1.0,10.0]}
+    params_tfidf = {'tfidf_vec__binary':[True,False],'tfidf_vec__ngram_range':[(1,1),(1,2)],'mnb__alpha':[0.1,1.0,10.0]}
+
+    gs_count = GridSearchCV(pip_count,params_count,cv=4,n_jobs=-1,verbose=1)
+    gs_count.fit(X_train,y_train)
+    print gs_count.best_score_
+    print gs_count.best_params_
